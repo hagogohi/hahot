@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>AI 模型动态 · 新模型发布与额度重置</title>
+<script id="hatch-space-target">
+    (() => {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const root = document.documentElement;
+      if (params.get("hatch_target") === "tv") root.dataset.hatchTarget = "tv";
+      const widget = params.get("hatch_view") === "widget";
+      root.dataset.hatchView = widget ? "widget" : "app";
+      if (widget) {
+        root.dataset.hatchWidget = params.get("hatch_widget") || "default";
+        root.dataset.hatchInstance = params.get("hatch_instance") || "";
+        const sizes = ["small", "medium", "large", "watch", "watch_round"];
+        root.dataset.hatchSize = sizes.includes(params.get("hatch_size")) ? params.get("hatch_size") : "small";
+        const style = document.createElement("style");
+        style.textContent = 'html[data-hatch-view="widget"], html[data-hatch-view="widget"] body { background: transparent; }';
+        document.head.prepend(style);
+      }
+    })();
+  </script>
+<style>
+  :root{
+    --bg:#f6f5f0; --surface:#ffffff; --surface2:#efeee6; --ink:#22251f; --muted:#6f7468;
+    --line:#e4e2d6; --accent:#0e7a5f; --accent-dark:#0a5c47; --amber:#a86f0a; --amber-bg:#faf1da;
+    --red:#b3372c; --red-bg:#f9e9e6; --chip:#efeee6; --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#12140f; --surface:#1b1e17; --surface2:#24271e; --ink:#eceee4; --muted:#a3a897;
+      --line:#2d3025; --accent:#45bb90; --accent-dark:#82d3ae; --amber:#dfa83e; --amber-bg:#33290f;
+      --red:#e07a6e; --red-bg:#3a1d19; --chip:#24271e; }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  button,[role="button"],select,summary,input:not([type="checkbox"],[type="radio"]){min-height:2.25rem}
+  a{color:var(--accent)}
+  .mono{font-family:var(--mono)}
+  /* ===== layout: AIHOT-style sidebar + one calm column ===== */
+  .layout{display:flex;gap:40px;max-width:1160px;margin:0 auto;padding:0 20px;align-items:flex-start}
+  .side{width:176px;flex:none;position:sticky;top:0;min-height:100vh;padding:30px 0 24px;display:flex;flex-direction:column;gap:26px}
+  .snav{display:flex;flex-direction:column;gap:2px}
+  .sgroup{font-size:12px;color:var(--muted);margin:16px 10px 5px}
+  .sgroup:first-child{margin-top:0}
+  .snav a{text-decoration:none;color:var(--ink);font-size:14.5px;padding:7px 10px;border-radius:9px;line-height:1.4}
+  .snav a:hover{background:var(--surface2)}
+  .snav a.on{background:var(--surface2);font-weight:700}
+  .sstatus{margin-top:auto;border-top:1px solid var(--line);padding-top:14px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:5px;line-height:1.5}
+  .sstatus b{color:var(--ink)}
+  .ss-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .ss-dim{margin-top:4px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;flex:none;animation:pulse 1.6s infinite}
+  .dot.warn{background:var(--amber);animation:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(14,122,95,.35)}70%{box-shadow:0 0 0 7px rgba(14,122,95,0)}100%{box-shadow:0 0 0 0 rgba(14,122,95,0)}}
+  @media (prefers-reduced-motion: reduce){.dot{animation:none} html{scroll-behavior:auto}}
+  .wrap{flex:1;min-width:0;max-width:880px;margin:0 auto;padding:30px 0 64px;display:flex;flex-direction:column}
+  .wrap>header{order:0}
+  .wrap>#models{order:1}
+  .wrap>#resets{order:2}
+  .wrap>#faq{order:3}
+  .wrap>footer{order:4}
+  @media (max-width:860px){
+    .layout{flex-direction:column;gap:0;padding:0 16px}
+    .side{width:auto;min-height:0;position:static;padding:18px 0 4px;gap:12px}
+    .snav{flex-direction:row;flex-wrap:wrap;gap:4px;align-items:center}
+    .sgroup{margin:0 2px 0 10px}
+    .sgroup:first-child{margin-left:0}
+    .snav a{padding:6px 11px;background:var(--surface);border:1px solid var(--line);border-radius:999px;font-size:13.5px}
+    .snav a.on{background:var(--accent);border-color:var(--accent);color:#fff}
+    .sstatus{margin-top:0;flex-direction:row;flex-wrap:wrap;gap:4px 16px;border-top:none;padding-top:2px}
+    .ss-dim{display:none}
+    .wrap{padding-top:14px;width:100%}
+  }
+  /* ===== page head: compact, no hero ===== */
+  .pagehead h1{font-size:25px;line-height:1.3;margin:0 0 8px;font-weight:800;letter-spacing:.01em}
+  .pagehead p.lede{font-size:14.5px;color:var(--muted);max-width:700px;margin:0;line-height:1.7}
+  .pagehead p.lede b{color:var(--ink)}
+  .statline{display:flex;flex-wrap:wrap;gap:10px 30px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:13px 2px;margin-top:18px}
+  .statline .sl{display:flex;flex-direction:column;gap:1px}
+  .statline .sl b{font-size:19px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+  .statline .sl small{font-size:12px;color:var(--muted)}
+  .meta-line{font-size:12.5px;color:var(--muted);margin:9px 0 0}
+  .note{font-size:13px;color:var(--muted);margin:10px 0 0;line-height:1.65;max-width:700px}
+  .note b{color:var(--amber)}
+  /* ===== sections: whitespace, not boxes ===== */
+  section{margin-top:46px;scroll-margin-top:18px}
+  section#models{margin-top:34px}
+  h2{font-size:20px;margin:0 0 6px;font-weight:800;letter-spacing:.01em}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:720px;line-height:1.7}
+  details.fold{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px 16px 10px;margin-top:12px}
+  details.fold>summary{cursor:pointer;font-weight:700;font-size:15px;padding:10px 0;list-style-position:outside}
+  details.fold>summary::marker{color:var(--accent)}
+  details.fold .vendor-grid,details.fold .table-scroll{margin-top:6px}
+  footer details.fold{background:transparent;border:none;padding:0;margin:0}
+  footer details.fold>summary{font-size:13.5px;padding:4px 0}
+  /* ===== buttons & controls: AIHOT pill bar ===== */
+  .btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:600;border-radius:999px;padding:8px 18px;cursor:pointer;min-height:40px}
+  .btn.ghost{background:transparent;color:var(--accent);border-color:var(--line)}
+  .btn.small{min-height:34px;padding:4px 14px;font-size:13px}
+  .btn:active{transform:translateY(1px)}
+  a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:2px;background:var(--surface2);border-radius:999px;padding:3px;order:0}
+  .chip{border:none;background:transparent;color:var(--muted);border-radius:999px;padding:6px 15px;font:inherit;font-size:13.5px;cursor:pointer;min-height:34px}
+  .chip[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 3px rgba(30,30,20,.14)}
+  .search{order:1;flex:0 1 250px;margin-left:auto;display:flex}
+  .search input{flex:1;width:100%;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:9px 16px;font:inherit;font-size:14px;min-height:42px}
+  @media (max-width:560px){ .search{order:2;flex:1 1 100%;margin-left:0} }
+  select{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px;min-height:40px}
+  /* ===== spotlight: the "current hot" card ===== */
+  .spot{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+  .spot-label{font-size:12.5px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:7px}
+  .spot-label::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}
+  .spot-code{font-family:var(--mono);font-size:clamp(30px,6vw,38px);font-weight:700;letter-spacing:3px;line-height:1.2;margin:2px 0}
+  .spot-actions{display:flex;gap:8px;flex-wrap:wrap}
+  /* ===== code feed: single-column timeline list ===== */
+  .feed{display:flex;flex-direction:column;gap:10px}
+  .code-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 18px 13px;display:flex;flex-direction:column;gap:5px}
+  .code-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .code{font-family:var(--mono);font-size:24px;font-weight:700;letter-spacing:2.5px;line-height:1.25}
+  .badge{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .badge.maybe{background:var(--amber-bg);color:var(--amber)}
+  .badge.ok{background:var(--accent);color:#fff}
+  .badge.used{background:var(--surface2);color:var(--muted)}
+  .badge.dead{background:var(--red-bg);color:var(--red)}
+  .badge.tried{background:var(--surface2);color:var(--muted)}
+  .meta{font-size:13px;color:var(--muted);line-height:1.6}
+  .meta b{color:var(--ink)}
+  .card-actions{display:flex;gap:8px;border-top:1px solid var(--line);padding-top:11px;margin-top:6px}
+  .card-actions .btn{flex:0 0 auto}
+  .card-actions .btn:first-child{flex:1}
+  .empty{border:1.5px dashed var(--line);border-radius:14px;padding:28px;text-align:center;color:var(--muted);font-size:14px}
+  .pool-note{font-size:13.5px;min-height:22px;color:var(--muted)}
+  .pool-note b{color:var(--ink)}
+  /* ===== channels: quiet list rows ===== */
+  .channels{display:flex;flex-direction:column;gap:10px}
+  .chan{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}
+  .chan h3{margin:0;font-size:15px;flex:0 0 132px}
+  .chan p{margin:0;font-size:13px;color:var(--muted);line-height:1.6;flex:1 1 280px}
+  .chan .kw{font-family:var(--mono);background:var(--surface2);border-radius:8px;padding:5px 10px;font-size:12.5px;word-break:break-all}
+  .prompt-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:10px}
+  #live pre{white-space:pre-wrap;font-family:var(--sans);font-size:13.5px;background:var(--surface2);border-radius:10px;padding:12px;margin:10px 0 12px;line-height:1.65}
+  /* ===== stat strip (models) ===== */
+  .stats{display:flex;flex-wrap:wrap;gap:12px 30px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:13px 2px;margin:0 0 6px}
+  .stat{display:flex;flex-direction:column;gap:1px;flex:1 1 150px}
+  .stat .n{font-size:19px;font-weight:800;line-height:1.25;font-variant-numeric:tabular-nums}
+  .stat .n small{font-size:12.5px;color:var(--muted);font-weight:600}
+  .stat .l{font-size:12px;color:var(--muted);line-height:1.5}
+  /* ===== tables: hairlines only ===== */
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13.5px}
+  th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12.5px;color:var(--muted);font-weight:600}
+  tr:last-child td{border-bottom:none}
+  td code, p code{font-family:var(--mono);font-size:12.5px;background:var(--surface2);padding:1px 6px;border-radius:6px}
+  pre.cmd{background:#17211b;color:#cfe8d6;border-radius:12px;padding:16px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-family:var(--mono);font-size:13px;line-height:1.8}
+  @media (prefers-color-scheme: dark){ pre.cmd{background:#0a0f0a} }
+  .table-scroll{overflow-x:auto;border-radius:14px}
+  .table-scroll table{min-width:640px}
+  @media (max-width:560px){ .table-scroll{overflow-x:visible} .table-scroll table{min-width:0;font-size:12.5px} .table-scroll th,.table-scroll td{padding:8px 9px} }
+  /* ===== model + reset cards: one list style ===== */
+  .vendor-grid,.reset-grid{display:flex;flex-direction:column;gap:10px}
+  .model-card,.reset-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:7px}
+  .model-card .v-head,.reset-card .r-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .model-card .v-name,.reset-card .r-name{font-size:15px;font-weight:700;color:var(--muted)}
+  .model-card .v-date{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .model-card .m-name{font-size:18.5px;font-weight:800;line-height:1.35}
+  .model-card p,.reset-card p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.65}
+  .model-card p b{color:var(--ink)}
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--chip);color:var(--ink);white-space:nowrap}
+  .tag.hot{background:var(--accent);color:#fff}
+  .tag.warn{background:var(--amber-bg);color:var(--amber)}
+  .tag.open{background:var(--surface2);color:var(--accent-dark);border:1px solid var(--accent)}
+  .price-row,.reset-stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:9px}
+  .price-row b,.reset-stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .reset-card .r-who{font-size:12.5px;color:var(--muted)}
+  .reset-card .r-latest{font-size:14.5px;font-weight:600}
+  .reset-card .r-latest b{color:var(--accent-dark)}
+  /* ===== checker ===== */
+  .checker{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .boxes{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .boxes input{width:52px;height:60px;text-align:center;font-family:var(--mono);font-size:26px;font-weight:700;text-transform:uppercase;border:1.5px solid var(--line);border-radius:12px;background:var(--surface2);color:var(--ink)}
+  .boxes input:focus{border-color:var(--accent);outline:none}
+  .verdict{font-size:14px;min-height:24px}
+  /* ===== steps + access: numbered rows ===== */
+  .steps,.access-grid{display:flex;flex-direction:column;gap:10px;counter-reset:step}
+  .step,.access-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 18px;display:grid;grid-template-columns:32px 150px 1fr;gap:4px 14px;align-items:start}
+  .step .no,.access-card .no{font-size:20px;font-weight:800;color:var(--accent);line-height:1.3}
+  .step h3,.access-card h3{margin:2px 0 0;font-size:15px}
+  .step p,.access-card p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.65}
+  .access-card p b{color:var(--ink)}
+  @media (max-width:560px){
+    .step,.access-card{grid-template-columns:32px 1fr}
+    .step p,.access-card p{grid-column:2}
+    .code{font-size:21px}
+    .boxes input{width:44px;height:52px;font-size:22px}
+  }
+  /* ===== pipeline (inside fold) ===== */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:14px 0}
+  .pipe .node{flex:1 1 120px;background:var(--surface2);border-radius:12px;padding:12px;text-align:center}
+  .pipe .node b{display:block;font-size:14.5px}
+  .pipe .node span{font-size:12px;color:var(--muted)}
+  .pipe .arr{align-self:center;color:var(--muted);font-weight:700}
+  @media (max-width:560px){ .pipe .arr{display:none} }
+  /* ===== faq + footer ===== */
+  .faq details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 16px;margin-bottom:8px}
+  .faq summary{cursor:pointer;font-weight:600;padding:8px 0;font-size:15px}
+  .faq p{font-size:14px;color:var(--muted);margin:0 0 12px}
+  footer{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;font-size:13px;color:var(--muted)}
+  footer a{word-break:break-all}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 20px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:50;max-width:88vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* ===== widget ===== */
+  .widget-view{display:none}
+  html[data-hatch-view="widget"] .app-view{display:none}
+  html[data-hatch-view="widget"] .widget-view{display:flex}
+  html[data-hatch-view="widget"], html[data-hatch-view="widget"] body{overflow:hidden}
+  .widget-view{flex-direction:column;gap:4px;padding:12px;margin-top:0;height:100vh;max-height:100vh;overflow:hidden;justify-content:center;font-family:var(--sans);color:var(--ink)}
+  .widget-view .w-code{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:2px;line-height:1.15}
+  .widget-view .w-big{font-size:22px;font-weight:800;line-height:1.2}
+  .widget-view .w-small{font-size:11.5px;color:var(--muted);line-height:1.35}
+  html[data-hatch-size="small"] .widget-view .w-code{font-size:20px}
+  html[data-hatch-size="small"] .widget-view .w-big{font-size:17px}
+  html[data-hatch-size="large"] .widget-view .w-code{font-size:38px}
+  html[data-hatch-size="large"] .widget-view .w-big{font-size:30px}
+  html[data-hatch-size="large"] .widget-view .w-small{font-size:13px}
+  html[data-hatch-target="tv"] .pagehead h1{font-size:44px}
+</style>
+</head>
+<body>
+
+<!-- ===== WIDGET ===== -->
+<section class="widget-view" aria-label="AI 模型动态概览">
+  <div class="w-small">AI 模型动态 · 2026 年 11 月</div>
+  <div class="w-big">最新发布 · GPT-6.2 Astra</div>
+  <div class="w-small">11/17 · OpenAI · $8 / $40 · 1.05M 上下文</div>
+  <div class="w-small">今日重置：Codex 已发卡 · Antigravity 已重置</div>
+</section>
+
+<!-- ===== APP ===== -->
+<div class="app-view">
+<div class="layout">
+<aside class="side">
+  <nav class="snav" aria-label="本页分区">
+    <div class="sgroup">动态</div>
+    <a href="#models" class="on">模型发布</a>
+    <a href="#resets">额度重置</a>
+    <div class="sgroup">说明</div>
+    <a href="#faq">常见问题</a>
+  </nav>
+  <div class="sstatus">
+    <div class="ss-row"><span class="dot"></span> <b>模型动态快照</b></div>
+    <div class="ss-row">截至 <b>2026-11-26 17:20</b>（北京时间）</div>
+    <div class="ss-row">本月约 <b>40 家机构 · 53 款模型</b></div>
+    <div class="ss-row ss-dim">重置区打开时尝试拉取 AIHOT 公开接口，拉不到显示快照</div>
+  </div>
+</aside>
+
+
+<div class="wrap">
+  <header class="pagehead">
+    <h1>AI 模型动态</h1>
+    <p class="lede">专注各大 AI 厂商的<b>相关模型消息</b>：新模型发布、价格与开放范围变化，以及订阅工具的<b>额度重置与发卡</b>动态。</p>
+    <div class="statline">
+      <span class="sl"><b>53 款</b><small>本月发布模型（2026 年 11 月）</small></span>
+      <span class="sl"><b>40 家</b><small>发布机构</small></span>
+      <span class="sl"><b>11/26</b><small>最近动态 · Codex 发卡 / Antigravity 重置</small></span>
+      <span class="sl"><b>1M</b><small>本月新旗舰上下文门槛</small></span>
+    </div>
+    <p class="meta-line">快照截至 2026-11-26 17:20（北京时间）· 价格为厂商公布的每百万 Token 输入 / 输出价</p>
+    <p class="note"><b>看点：</b>先看旗舰的价格与开放范围，再看重置区今天有没有发卡或全局重置——发卡不等于额度已恢复，用卡时机自己挑。</p>
+  </header>
+
+  <!-- MODEL RELEASES -->
+  <section id="models">
+    <h2>各大 AI 厂商 · 模型发布动态</h2>
+    <p class="sub">AIHOT 原站的<b>模型榜与发布追踪</b>（开源版未带）：盯各家旗舰何时发、多少钱、谁能用。本节为 <b>2026 年 11 月</b>快照，截至 <b>2026-11-26 17:20（北京时间）</b>；价格为厂商公布的每百万 Token 输入 / 输出价，跑分为厂商口径——看价格和开放范围最实在。本月约 <b>40 家机构、53 款模型</b>发布。</p>
+    <div class="stats">
+      <div class="stat"><div class="n">11/17</div><div class="l">OpenAI 同日发 GPT-6.2 Astra + Sol 两款，Astra 较上代降价 20%</div></div>
+      <div class="stat"><div class="n">$8<small> / $40</small></div><div class="l">旗舰价锚点：GPT-6.2 Astra 与 Claude Fable 5.2 同价（每百万 Token）</div></div>
+      <div class="stat"><div class="n">12/1</div><div class="l">注意涨价点：Gemini 4 Carbon 尝鲜价 $2/$10 只到 11/30，之后 $4/$20</div></div>
+      <div class="stat"><div class="n">1M</div><div class="l">本月新旗舰的上下文门槛：Astra 1.05M、Fable 5.2 / Neon / Qwen4-Max / GLM-5.4 均为 1M 级</div></div>
+    </div>
+
+    <h3 style="margin:20px 0 10px;font-size:17px">旗舰速览：一张表看完本月主桌</h3>
+    <div class="table-scroll"><table>
+      <tr><th style="width:20%">模型</th><th style="width:14%">厂商</th><th style="width:12%">发布</th><th style="width:20%">价格（入 / 出）</th><th>开放范围与一句话</th></tr>
+      <tr><td><b>GPT-6.2 Astra</b></td><td>OpenAI</td><td>11/17</td><td>$8 / $40</td><td>API、ChatGPT、Codex 同日可用；OpenAI 当前最强，1.05M 上下文，较 GPT-6 Astra 便宜 20%</td></tr>
+      <tr><td><b>GPT-6.2 Sol</b></td><td>OpenAI</td><td>11/17</td><td>$2 / $10</td><td>同日可用；走量主力，编程基准只比 Astra 低半分、价格五分之一，被评为当下编程性价比之选</td></tr>
+      <tr><td><b>Claude Fable 5.2</b></td><td>Anthropic</td><td>11/9</td><td>$8 / $40</td><td>Claude 与 API 全量可用；1M 上下文，较 Fable 5.1 便宜约 20%、快约 30%；同日 Mythos 5.2 仅限受核验机构</td></tr>
+      <tr><td><b>Gemini 4 Carbon</b></td><td>Google</td><td>11/10 转 GA</td><td>$2 / $10 → $4 / $20</td><td>付费 API、App 与搜索可用，无免费层；尝鲜价到 11/30，12/1 起翻倍，届时比 Neon 还贵</td></tr>
+      <tr><td><b>Gemini 4 Neon</b></td><td>Google</td><td>11/18</td><td>$3 / $15</td><td>1M 上下文，单任务成本比 Carbon 低 32%；法律、税务类基准居前，价格不到旗舰一半</td></tr>
+      <tr><td><b>Gemini 4 Hydrogen</b></td><td>Google</td><td>11/12</td><td>$1.50 / $7.50</td><td>速度与走量档，<b>进 Gemini 免费层</b>，是本月旗舰线里唯一能白嫖先试的</td></tr>
+      <tr><td><b>Qwen4-Max</b></td><td>阿里</td><td>11/16</td><td>¥10 / ¥30（国际站 $1.50 / $4.50）</td><td>仅 API；2.4T 参数，单任务成本较上代降约 58%；国内按量价较 Qwen3.8-Max 降 16.7%，预览版 11/25 24:00 已关</td></tr>
+      <tr><td><b>Kimi K3.1 Pro</b></td><td>月之暗面</td><td>11/2 放权重</td><td>¥13 / ¥68（海外口径 $2 / $10 不随上下文涨价）</td><td><b>开放权重</b>；2.8T 总参 / 104B 激活，1,048,576 上下文；注意 K2 系列 12 月底全线下线，要迁移</td></tr>
+      <tr><td><b>GLM-5.4</b></td><td>智谱 Z.ai</td><td>11/23</td><td>按量 API 未定价</td><td>750B 基座 + Loop Transformer（28 层循环两遍），1M 上下文、原生视觉；先上 GLM Coding Plan（额度涨到 1.5 倍），标准 API 待安全评估，权重称将开源但无时间表</td></tr>
+      <tr><td><b>Hy4 / Hy4 Flash</b></td><td>腾讯混元</td><td>11/4 / 11/16</td><td>Hy4 ¥6 / ¥18；Flash ¥0.50 / ¥2.00</td><td>Flash 为 224B 总参 / 12B 激活多模态，1M 上下文；TokenHub 5 折：Hy4 到 12/31、Flash 到 11/30</td></tr>
+    </table></div>
+    <p style="font-size:13px;color:var(--muted)">同场其他发布：微软 MAI Code 2（11/17 Ignite，面向 GitHub Copilot）；Thinking Machines 的 Inkling 2 Mini（11/20，开放权重，26.4B 总参 / 3.4B 激活，可跑笔记本）；Google Genie 4 世界模型（11/19 进 Gemini API）；OpenAI GPT Image 2.6（11/4，主打编辑一致性）；Google Gemini Omni 1.2 Flash 视频（11/5，$0.07/秒）；火山引擎豆包 SeedRealtime 1.0 实时音视频 API（11/19）；百度文心 5.5 Flash Preview（11/11，限时 5 折）。来源见页脚。</p>
+
+    <h3 style="margin:20px 0 10px;font-size:17px">按厂商看：这轮各自在赌什么</h3>
+    <div class="vendor-grid">
+      <div class="model-card">
+        <div class="v-head"><span class="v-name">OpenAI</span><span class="v-date">11/17 一日三发</span></div>
+        <div class="m-name">GPT-6.2 Astra / Sol / Luna</div>
+        <div class="tags"><span class="tag hot">旗舰</span><span class="tag">ChatGPT · Codex · API</span></div>
+        <p>Astra 管最难的活，Sol 管日常编程与 Agent，<b>Luna $0.05 / $0.25</b> 管海量小任务——不发一款，发一整条价格带。但注意下方重置区的计费修正：6.2 上线时的计费错误已修复，同样的工作现在更吃额度。</p>
+        <div class="price-row"><span>Astra <b>$8 / $40</b></span><span>Sol <b>$2 / $10</b></span><span>上下文 <b>1.05M</b></span></div>
+      </div>
+      <div class="model-card">
+        <div class="v-head"><span class="v-name">Anthropic</span><span class="v-date">11/9</span></div>
+        <div class="m-name">Claude Fable 5.2</div>
+        <div class="tags"><span class="tag hot">旗舰</span><span class="tag">1M 上下文</span><span class="tag warn">零数据留存非默认</span></div>
+        <p>比上代<b>便宜约 20%、快约 30%</b>，长程 Agent 与深度推理是主打；FrontierSWE v2 报 69.9%。同日 Mythos 5.2 同价但仅限受核验机构，普通用户不用惦记。</p>
+        <div class="price-row"><span>价格 <b>$8 / $40</b></span><span>缓存读 <b>$0.20</b></span><span>下位档 <b>Sonnet 5.5 / Haiku 5.5</b></span></div>
+      </div>
+      <div class="model-card">
+        <div class="v-head"><span class="v-name">Google</span><span class="v-date">11/10–11/18 五周四发</span></div>
+        <div class="m-name">Gemini 4 Carbon / Neon / Hydrogen</div>
+        <div class="tags"><span class="tag hot">分层最细</span><span class="tag open">Hydrogen 有免费层</span></div>
+        <p>别人发一款，Google 发一条梯队：Carbon 顶上限、Neon 管深度分析、Hydrogen 管速度走量还塞进免费层。唯一要记牢的是 <b>Carbon 12/1 涨价</b>，别按尝鲜价做长期预算。</p>
+        <div class="price-row"><span>Carbon <b>$2/$10 → $4/$20</b></span><span>Neon <b>$3 / $15</b></span><span>Hydrogen <b>$1.50 / $7.50</b></span></div>
+      </div>
+      <div class="model-card">
+        <div class="v-head"><span class="v-name">阿里 · 通义千问</span><span class="v-date">11/16</span></div>
+        <div class="m-name">Qwen4-Max</div>
+        <div class="tags"><span class="tag">仅 API</span><span class="tag">2.4T 参数</span></div>
+        <p>本月国产旗舰里声量最大的一款：官方称单任务成本较上代降 58%（26.58 元 → 11.16 元）。国内按量价输入 10 / 输出 30 元，缓存命中 0.5 元，新人免费 100 万 Token（90 天）。</p>
+        <div class="price-row"><span>国内 <b>¥10 / ¥30</b></span><span>国际站 <b>$1.50 / $4.50</b></span><span>上下文 <b>1M</b></span></div>
+      </div>
+      <div class="model-card">
+        <div class="v-head"><span class="v-name">月之暗面 · Kimi</span><span class="v-date">11/2 权重上架</span></div>
+        <div class="m-name">Kimi K3.1 Pro</div>
+        <div class="tags"><span class="tag open">开放权重</span><span class="tag warn">K2 系列 12 月底下线</span></div>
+        <p>2.8T 总参、权重文件约 1.56TB，提前两天放上 Hugging Face；定价不随上下文长度涨价是它和别家最不一样的地方。高速版价格翻倍、输出快 2–3 倍；Batch API 六折。</p>
+        <div class="price-row"><span>国内 <b>¥13 / ¥68</b></span><span>高速版 <b>¥26 / ¥136</b></span><span>上下文 <b>1,048,576</b></span></div>
+      </div>
+      <div class="model-card">
+        <div class="v-head"><span class="v-name">智谱 Z.ai</span><span class="v-date">11/23</span></div>
+        <div class="m-name">GLM-5.4</div>
+        <div class="tags"><span class="tag">Loop Transformer</span><span class="tag">原生视觉</span><span class="tag warn">API 未开放</span></div>
+        <p>不堆参数堆架构：750B 基座挑 28 层循环跑两遍，官方称打出 2–3T 级智能，闲时最高 200 token/s。但<b>官方未公布旗舰本体基准分</b>，量化数据只来自 30B 同架构对照实验——先按 Coding Plan 实际手感判断，别只看宣传。</p>
+        <div class="price-row"><span>入口 <b>Coding Plan / ZCode / Trae</b></span><span>套餐额度 <b>涨至 1.5 倍</b></span><span>上下文 <b>1M</b></span></div>
+      </div>
+    </div>
+    <p style="font-size:13.5px;margin-top:12px">想持续追发布而不是看快照：<a href="https://af.net/zh/realtime/ai-model-releases-november-2026/" target="_blank" rel="noopener">11 月模型发布追踪（每日更新）→</a>　·　<a href="https://beevr.ai/blog/ai-model-releases-november-2026" target="_blank" rel="noopener">Beevr 逐日清单 →</a>　·　<a href="https://www.tldl.io/resources/latest-model-releases" target="_blank" rel="noopener">TLDL 最新模型总览 →</a></p>
+  </section>
+
+  <!-- RESET MONITOR -->
+  <section id="resets">
+    <h2>额度重置监控：今天重置了吗？</h2>
+    <p class="sub">AIHOT 原站的招牌功能：订阅制工具会不定期<b>全局重置额度</b>，或发<b>可留存的重置卡</b>自己挑时间用——发卡 ≠ 额度已恢复。本节盯 Codex、Claude、Antigravity、Grok Bot 四家：打开时尝试拉 AIHOT 的公开重置接口，拉不到显示 <b>2026-11-26 17:20 快照</b>。时间为北京时间，个人余额以产品内显示为准。</p>
+    <p class="pool-note" id="resetLiveState">内置快照 · 正在连接 AIHOT 重置接口…</p>
+    <div class="reset-grid">
+      <article class="reset-card" data-reset-card="codex">
+        <div class="r-head"><span class="r-name">OpenAI Codex</span><span class="badge ok">今日已发卡</span></div>
+        <div class="r-who">盯人：Tibo @thsottiaux · Andrew @ajambrosino</div>
+        <div class="r-latest">最新：<b>11/26 发重置卡，已确认到账</b>——适用所有 Go、Plus、Pro、Business 用户</div>
+        <p>起因是 GPT-6.2 计费错误：官方修复后，同样的工作更吃额度（Astra 快 40% 到限额、Sol 快 25%），这张卡是致歉补偿，过去的差额不追收。另：11/25 给 Business 团队单独发过一张卡 + 快速模式免费到 12/31；今天 02:10 Andrew 确认 Codex 故障、02:18 恢复。</p>
+        <div class="reset-stats"><span>近 90 天重置 <b>18 次</b></span><span>发卡 <b>12 次</b></span><span>通常间隔 <b>2 天</b></span><span>上次全局重置 <b>10/28</b></span></div>
+        <p><a href="https://aihot.news/codex-reset" target="_blank" rel="noopener">AIHOT Codex 重置日历 →</a></p>
+      </article>
+      <article class="reset-card" data-reset-card="claude">
+        <div class="r-head"><span class="r-name">Anthropic Claude</span><span class="badge maybe">有卡待用</span></div>
+        <div class="r-who">盯人：Claude 官方账号 · @lydiahallie 等</div>
+        <div class="r-latest">最新：<b>11/10–11 发免费全量重置卡</b>——Pro、Max、Ultra、Team 人手一张</div>
+        <p>这张卡覆盖全部模型与限额，<b>须在 12/10 14:00 PT 前使用</b>，用了也不挪你的每周重置日。另有按订阅时长发的 Fable 重置：订阅 &lt;6 个月 1 张、6–12 个月 2 张、&gt;12 个月 3 张（Ultra / Team Premium），可用到明年 3/8。近 30 天：全局重置 0 次、发卡 2 次。</p>
+        <div class="reset-stats"><span>近 30 天发卡 <b>2 次</b></span><span>全局重置 <b>0 次</b></span><span>免费卡截止 <b>12/10</b></span></div>
+        <p><a href="https://aihot.news/agent?tab=api" target="_blank" rel="noopener">AIHOT 接口说明（含 Claude 重置接口）→</a></p>
+      </article>
+      <article class="reset-card" data-reset-card="antigravity">
+        <div class="r-head"><span class="r-name">Google Antigravity</span><span class="badge ok">今日已重置</span></div>
+        <div class="r-who">盯人：Varun Mohan @_mohansolo</div>
+        <div class="r-latest">最新：<b>11/26 感恩节重置</b>——全部用户的 Gemini 额度已重置</div>
+        <p>四家里重置最勤的一家，11 月已至少 7 次：11/6 周末重置、11/10–11 一周年全模型重置、11/21 缓存优化后的额外重置（官方称同样额度能多干约 22% 的活）、11/22 模型分层升级再重置（Pro 给 Carbon、全员给 Hydrogen）。近 30 天约 6 次全局重置。</p>
+        <div class="reset-stats"><span>11 月重置 <b>≥7 次</b></span><span>近 30 天 <b>约 6 次</b></span><span>方式 <b>全局直接重置</b></span></div>
+        <p><a href="https://aihot.news/agent?tab=api" target="_blank" rel="noopener">AIHOT 接口说明（含 Antigravity 重置接口）→</a></p>
+      </article>
+      <article class="reset-card" data-reset-card="grok">
+        <div class="r-head"><span class="r-name">xAI Grok Bot</span><span class="badge used">暂无新消息</span></div>
+        <div class="r-who">盯人：Grok Bot 官方账号 @bot</div>
+        <div class="r-latest">最新：<b>11/9–10 全局重置</b>——所有 Grok Bot 用户的周限额已重置</div>
+        <p>Grok 只做全局直接重置、不发重置卡，节奏也最慢：上一次还是 8/27 向 SuperGrok、Cursor Pro 订阅者开放 Bot 时。近 30 天：重置 1 次、发卡 0 次。下一次没有预告，官方发帖才算数。</p>
+        <div class="reset-stats"><span>近 30 天重置 <b>1 次</b></span><span>发卡 <b>0 次</b></span><span>方式 <b>全局直接重置</b></span></div>
+        <p><a href="https://aihot.news/agent?tab=api" target="_blank" rel="noopener">AIHOT 接口说明（含 Grok Bot 重置接口）→</a></p>
+      </article>
+    </div>
+
+    <details class="fold"><summary>11 月重置事件簿（节选）· 点开看完整时间线</summary>
+    <div class="table-scroll"><table>
+      <tr><th style="width:14%">日期</th><th style="width:16%">产品</th><th style="width:14%">类型</th><th style="width:22%">适用范围</th><th>起因 / 原话要点</th></tr>
+      <tr><td>11/26</td><td>Codex</td><td>发重置卡 · 已确认</td><td>Go / Plus / Pro / Business 全部</td><td>GPT-6.2 计费错误致歉；Tibo 10:50 预告、15:26 确认「Banked 重置已上线」</td></tr>
+      <tr><td>11/26</td><td>Antigravity</td><td>全局重置</td><td>全部用户</td><td>感恩节重置，Varun Mohan 发帖致谢用户</td></tr>
+      <tr><td>11/25</td><td>Codex</td><td>发重置卡</td><td>ChatGPT Business 团队</td><td>一张储备卡 + 快速模式免费到 12/31</td></tr>
+      <tr><td>11/23 起</td><td>Claude</td><td>促销额度</td><td>美国 Duet 付费用户（符合资格）</td><td>Claude Duet 促销：每周 $500、上限 $3,000，持续到 12/31</td></tr>
+      <tr><td>11/23</td><td>智谱 GLM</td><td>套餐加量</td><td>GLM Coding Plan 全量用户</td><td>GLM-5.4 上线同步：V2 / V3 与团队版每周额度涨到 1.5 倍</td></tr>
+      <tr><td>11/21</td><td>Antigravity</td><td>全局重置</td><td>全部用户</td><td>Neon 缓存优化落地后额外重置，称同额度可多干约 22%</td></tr>
+      <tr><td>11/13</td><td>Codex</td><td>发重置卡</td><td>全部用户</td><td>dots 功能更新，banked 重置卡激活发放</td></tr>
+      <tr><td>11/10–11</td><td>Claude</td><td>发重置卡</td><td>Pro / Max / Ultra / Team</td><td>一张免费全量重置，12/10 前可用；另按订阅时长发 Fable 重置 1–3 张</td></tr>
+      <tr><td>11/10–11</td><td>Antigravity</td><td>全局重置</td><td>全部用户、全部模型</td><td>上线一周年纪念重置</td></tr>
+      <tr><td>11/9–10</td><td>Grok Bot</td><td>全局重置</td><td>全部用户</td><td>周限额重置（“We've reset weekly limits for all Grok Bot users”）</td></tr>
+      <tr><td>11/6</td><td>Antigravity</td><td>全局重置</td><td>全部用户</td><td>Gemini 与 Argon 额度重置，让用户周末继续用</td></tr>
+    </table></div>
+    </details>
+
+    <details class="fold"><summary>时间是怎么算的（沿用 AIHOT 的规则）</summary>
+      <p style="margin:0;font-size:14px;color:var(--muted)"><b style="color:var(--ink)">有原话按原话：</b>原帖写了「6pm PST」「next hour」这类时间，按太平洋时间换算成北京时间并预留 1–2 小时缓冲（确认帖通常略晚）。<b style="color:var(--ink)">没写时间按习惯：</b>历史重置多集中在太平洋时间 16:30–21:30，即北京时间次日 08:30–13:30，近 35 次确认里 15 次落在这个时段。<b style="color:var(--ink)">不预测没宣布的重置：</b>官方账号（Codex 看 Tibo 与 Andrew、Antigravity 看 Varun Mohan）发帖才记录；标注「推算」的只是预计到账窗口，以产品内实际到账为准。重置总日历可看 <a href="https://resetnow.ai/en/calendar/2026/11/" target="_blank" rel="noopener">ResetNow 11 月日历（28 条记录）→</a> 或 <a href="https://www.tsalon.tech/whenreset/" target="_blank" rel="noopener">WhenReset 雷达 →</a></p>
+    </details>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq" id="faq">
+    <h2>常见问题</h2>
+    <details><summary>重置卡和全局重置有什么区别？</summary><p>全局重置是厂商直接把额度恢复；重置卡是发一张可留存的卡，自己挑时间用。发卡 ≠ 额度已恢复，没用卡之前余额不会变。</p></details>
+    <details><summary>模型价格应该怎么比？</summary><p>本页价格统一为厂商公布的每百万 Token 输入 / 输出价。注意尝鲜价的到期时间——例如 Gemini 4 Carbon 的 $2 / $10 只到 11/30，12/1 起变为 $4 / $20，别按尝鲜价做长期预算。</p></details>
+    <details><summary>这里的数据多久更新一次？</summary><p>模型发布与重置说明为 2026-11-26 17:20 的快照；重置区打开时会尝试拉取 AIHOT 的公开重置接口更新各卡的「最新」一行，拉不到时显示快照并注明。个人额度以产品内显示为准。</p></details>
+  </section>
+
+  <footer>
+    <details class="fold"><summary>数据来源与出处（点开看全部链接）</summary>
+    <p>
+    · 模型发布数据（截至 2026-11-26）：<a href="https://af.net/zh/realtime/ai-model-releases-november-2026/" target="_blank" rel="noopener">AIFOD《2026 年 11 月 AI 模型发布追踪》</a>、<a href="https://beevr.ai/blog/ai-model-releases-november-2026" target="_blank" rel="noopener">Beevr 逐日发布清单</a>、<a href="https://www.tldl.io/resources/latest-model-releases" target="_blank" rel="noopener">TLDL 最新模型总览</a>、<a href="https://csuite.so/blog/ai-models-roundup-november-2026" target="_blank" rel="noopener">CSuite 11 月模型月报</a>、<a href="https://www.chiyuanuk.com/token-price/" target="_blank" rel="noopener">颐元《国内大模型 Token 行情周报 2026-W48》</a>（国产模型人民币价格）<br/>
+    · 额度重置数据：<a href="https://aihot.news/codex-reset" target="_blank" rel="noopener">AIHOT Codex 额度重置监控</a>、<a href="https://aihot.news/agent?tab=api" target="_blank" rel="noopener">AIHOT API 说明</a>（Codex / Antigravity / Claude / Grok Bot 四组重置接口，本页打开时尝试拉取 recent 接口）、<a href="https://resetnow.ai/en/calendar/2026/11/" target="_blank" rel="noopener">ResetNow 2026 年 11 月重置日历</a>、<a href="https://www.tsalon.tech/whenreset/" target="_blank" rel="noopener">WhenReset 重置雷达（2026-11-26 17:16 读取）</a></p>
+    </details>
+    <p>模型价格、开放范围与重置状态以厂商官方消息为准；个人额度以产品内显示为准。</p>
+  </footer>
+</div>
+</div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+
+<script>
+(function(){
+  "use strict";
+  // Reset monitor: try AIHOT's public recent-reset APIs (same pattern as the code feed:
+  // live first, baked snapshot stays on screen if the fetch fails).
+  var ENDPOINTS = {
+    codex: "https://aihot.news/api/v1/codex-resets/recent",
+    claude: "https://aihot.news/api/v1/claude-resets/recent",
+    antigravity: "https://aihot.news/api/v1/antigravity-resets/recent",
+    grok: "https://aihot.news/api/v1/grok-bot-resets/recent"
+  };
+  var NAMES = { codex: "Codex", claude: "Claude", antigravity: "Antigravity", grok: "Grok Bot" };
+  var stateEl = document.getElementById("resetLiveState");
+  if (!stateEl || !window.fetch) { if (stateEl) stateEl.innerHTML = "当前显示 <b>2026-11-26 17:20 快照</b>（浏览器不支持实时拉取）。"; return; }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+  function fmtDay(iso){
+    var d = new Date(iso); if (isNaN(d.getTime())) return "";
+    try { return new Intl.DateTimeFormat("zh-CN", {timeZone:"Asia/Shanghai", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false}).format(d); }
+    catch(e){ return ""; }
+  }
+  var done = 0, ok = 0, latestChecked = "";
+  function finish(){
+    done++;
+    if (done < 4) return;
+    if (ok > 0){
+      stateEl.innerHTML = "已连接 <b>AIHOT 重置接口</b>（" + ok + " / 4 家返回实时数据" + (latestChecked ? "，接口核查时间 " + esc(fmtDay(latestChecked)) : "") + "）：下方各卡「最新」一行已按接口更新，其余说明为 2026-11-26 快照。个人额度以产品内显示为准。";
+    } else {
+      stateEl.innerHTML = "AIHOT 重置接口暂时拉不到，当前显示 <b>2026-11-26 17:20 快照</b>。最新状态可点各卡内的 AIHOT 链接查看。";
+    }
+  }
+  Object.keys(ENDPOINTS).forEach(function(key){
+    fetch(ENDPOINTS[key], {cache:"no-store"}).then(function(r){
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function(data){
+      if (data && data.checkedAt) latestChecked = data.checkedAt;
+      var ev = data && data.events && data.events[0];
+      var card = document.querySelector('[data-reset-card="' + key + '"]');
+      if (ev && card){
+        ok++;
+        var latest = card.querySelector(".r-latest");
+        var when = fmtDay(ev.confirmedAt || ev.createdAt || (ev.posts && ev.posts[0] && ev.posts[0].publishedAt) || "");
+        var label = ev.displayLabel || ev.label || "额度动态";
+        var scope = (ev.presentation && ev.presentation.audienceZh) || ev.scope || "";
+        var title = ev.title || label;
+        if (latest) latest.innerHTML = "最新（接口实时）：<b>" + esc(when ? when + " · " : "") + esc(title) + "</b>" + (scope ? "——" + esc(scope) : "");
+      }
+      finish();
+    }).catch(function(){ finish(); });
+  });
+})();
+</script>
+</body>
+</html>
